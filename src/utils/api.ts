@@ -1,6 +1,6 @@
 import { auth } from '../lib/firebase';
 
-const PRODUCTION_API_BASE_URL = 'https://ip.tadribi.chtbqi.com';
+const PRODUCTION_API_BASE_URL = 'https://api.tadribi.chtbqi.com';
 const RAW_ENV_API_BASE = (import.meta.env.VITE_API_BASE_URL || '').trim();
 export const API_BASE_URL = (
   RAW_ENV_API_BASE || (import.meta.env.PROD ? PRODUCTION_API_BASE_URL : '')
