@@ -1,4 +1,4 @@
-import type { User as FirebaseUser } from 'firebase/auth';
+﻿import type { User as FirebaseUser } from 'firebase/auth';
 import {
   collection,
   deleteDoc,
@@ -121,9 +121,9 @@ async function runEnsureUserDocuments(
 
   const fallbackName =
     clip(
-      effectiveOverrides?.name || fbUser.displayName || email.split('@')[0] || 'مترشح جديد',
+      effectiveOverrides?.name || fbUser.displayName || email.split('@')[0] || 'ظ…طھط±ط´ط­ ط¬ط¯ظٹط¯',
       120
-    ) || 'مترشح جديد';
+    ) || 'ظ…طھط±ط´ط­ ط¬ط¯ظٹط¯';
   const safeName = fallbackName.length >= 2 ? fallbackName : `${fallbackName} *`;
 
   const detectedProvider =
@@ -551,33 +551,201 @@ export async function fetchFirestoreLessons(includeInactive = false): Promise<Le
     const q = includeInactive
       ? collection(db, 'lessons')
       : query(collection(db, 'lessons'), where('active', '==', true));
+
     const snap = await getDocs(q);
     const list: Lesson[] = [];
+
     snap.forEach((docSnap) => {
       const d = docSnap.data();
+
+      const rawExamples = Array.isArray(d.examples)
+        ? d.examples
+        : Array.isArray(d['أمثلة'])
+          ? d['أمثلة']
+          : [];
+
+      const rawExercises = Array.isArray(d.exercises)
+        ? d.exercises
+        : Array.isArray(d['تمارين'])
+          ? d['تمارين']
+          : [];
+
+      const rawMcq = Array.isArray(d.mcq)
+        ? d.mcq
+        : Array.isArray(d.multipleChoiceQuestions)
+          ? d.multipleChoiceQuestions
+          : Array.isArray(d['أسئلة متعددة الخيارات'])
+            ? d['أسئلة متعددة الخيارات']
+            : [];
+
+      const examples = rawExamples.map((item: any) => ({
+        title_ar: String(item.title_ar ?? item.titleAr ?? item.title ?? item['title_ar'] ?? ''),
+        title_fr: String(item.title_fr ?? item.titleFr ?? item['title_fr'] ?? ''),
+        content_ar: String(item.content_ar ?? item.contentAr ?? item['content_ar'] ?? ''),
+        content_fr: String(item.content_fr ?? item.contentFr ?? item['content_fr'] ?? ''),
+      }));
+
+      const exercises = rawExercises.map((item: any) => ({
+        prompt_ar: String(item.prompt_ar ?? item.promptAr ?? item['prompt_ar'] ?? ''),
+        prompt_fr: String(item.prompt_fr ?? item.promptFr ?? item['prompt_fr'] ?? ''),
+        solution_ar: String(item.solution_ar ?? item.solutionAr ?? item['solution_ar'] ?? ''),
+        solution_fr: String(item.solution_fr ?? item.solutionFr ?? item['solution_fr'] ?? ''),
+      }));
+
+      const mcq = rawMcq.map((item: any) => ({
+        stem_ar: String(
+          item.stem_ar ??
+          item.stemAr ??
+          item['stem_ar'] ??
+          ''
+        ),
+        stem_speech_ar: String(
+          item.stem_speech_ar ??
+          item.stemSpeechAr ??
+          item['stem_speech_ar'] ??
+          item['شرح الكلام المعزز'] ??
+          ''
+        ),
+        stem_fr: String(
+          item.stem_fr ??
+          item.stemFr ??
+          item['stem_fr'] ??
+          ''
+        ),
+        options_ar: Array.isArray(item.options_ar)
+          ? item.options_ar.map((v: unknown) => String(v))
+          : Array.isArray(item.optionsAr)
+            ? item.optionsAr.map((v: unknown) => String(v))
+            : [],
+        options_fr: Array.isArray(item.options_fr)
+          ? item.options_fr.map((v: unknown) => String(v))
+          : Array.isArray(item.optionsFr)
+            ? item.optionsFr.map((v: unknown) => String(v))
+            : [],
+        correct_index: Number(
+          item.correct_index ??
+          item.correctIndex ??
+          item['الفهرس_الصحيح'] ??
+          0
+        ),
+        explanation_ar: String(
+          item.explanation_ar ??
+          item.explain_ar ??
+          item.explanationAr ??
+          item['explain_ar'] ??
+          ''
+        ),
+        explanation_speech_ar: String(
+          item.explanation_speech_ar ??
+          item.explanationSpeechAr ??
+          item['شرح الكلام المعزز'] ??
+          ''
+        ),
+        explanation_fr: String(
+          item.explanation_fr ??
+          item.explain_fr ??
+          item.explanationFr ??
+          item['explain_fr'] ??
+          ''
+        ),
+      }));
+
       list.push({
-        id: typeof d.numericId === 'number' ? d.numericId : Number(docSnap.id) || list.length + 1000,
+        id: typeof d.numericId === 'number'
+          ? d.numericId
+          : Number(d['معرف رقمي'] ?? docSnap.id) || list.length + 1000,
+
         firestoreId: docSnap.id,
-        sectionId: d.sectionId || null,
-        subject_slug: String(d.subjectSlug || ''),
+
+        sectionId:
+          d.sectionId ??
+          d['معرف القسم'] ??
+          null,
+
+        subject_slug: String(
+          d.subjectSlug ??
+          d.subjectName ??
+          d['اسم الموضوع'] ??
+          ''
+        ),
+
         track: (d.track as TrackSlug) || 'all',
+
         level: (d.level as LevelSlug) || 'foundation',
-        lesson_order: Number(d.lessonOrder || 1),
-        title_ar: String(d.titleAr || ''),
-        title_fr: String(d.titleFr || ''),
-        summary_ar: String(d.summaryAr || ''),
-        summary_fr: String(d.summaryFr || ''),
-        explanation_ar: String(d.explanationAr || ''),
-        explanation_speech_ar: String(d.explanationSpeechAr || d.explanationAr || ''),
-        explanation_fr: String(d.explanationFr || ''),
-        examples: Array.isArray(d.examples) ? d.examples : [],
-        exercises: Array.isArray(d.exercises) ? d.exercises : [],
-        mcq: Array.isArray(d.mcq) ? d.mcq : [],
-        active: Boolean(d.active),
-        created_at: tsToIso(d.createdAt),
+
+        lesson_order: Number(
+          d.lessonOrder ??
+          d.order ??
+          d['ترتيب الدرس'] ??
+          1
+        ),
+
+        title_ar: String(
+          d.titleAr ??
+          d.pageTitle ??
+          d['عنوان الصفحة'] ??
+          ''
+        ),
+
+        title_fr: String(
+          d.titleFr ??
+          d['عنوان الصفحة الفرنسية'] ??
+          ''
+        ),
+
+        summary_ar: String(
+          d.summaryAr ??
+          d['ملخصAr'] ??
+          ''
+        ),
+
+        summary_fr: String(
+          d.summaryFr ??
+          d['summaryFr'] ??
+          ''
+        ),
+
+        explanation_ar: String(
+          d.explanationAr ??
+          d.explanation ??
+          d['شرح'] ??
+          ''
+        ),
+
+        explanation_speech_ar: String(
+          d.explanationSpeechAr ??
+          d.explanationSpeech ??
+          d['شرح الكلام Ar'] ??
+          d.explanationAr ??
+          d.explanation ??
+          d['شرح'] ??
+          ''
+        ),
+
+        explanation_fr: String(
+          d.explanationFr ??
+          d['شرح فرنسي'] ??
+          ''
+        ),
+
+        examples,
+
+        exercises,
+
+        mcq,
+
+        active: Boolean(d.active ?? d['نشط']),
+
+        created_at: tsToIso(
+          d.createdAt ??
+          d['تم إنشاؤه في']
+        ),
       });
     });
-    return list.sort((a, b) => (a.lesson_order || 0) - (b.lesson_order || 0));
+
+    return list.sort(
+      (a, b) => (a.lesson_order || 0) - (b.lesson_order || 0)
+    );
   } catch (err) {
     handleFirestoreError(err, OperationType.LIST, 'lessons');
   }
@@ -1169,7 +1337,7 @@ export async function createSupportConversation(params: {
 }): Promise<string> {
   const convRef = doc(collection(db, 'conversations'));
   const msgRef = doc(collection(db, 'conversations', convRef.id, 'messages'));
-  const cleanSubject = clip(params.subject, 200) || 'استفسار دعم فني';
+  const cleanSubject = clip(params.subject, 200) || 'ط§ط³طھظپط³ط§ط± ط¯ط¹ظ… ظپظ†ظٹ';
   const cleanText = clip(params.initialMessage, 4000);
   if (!cleanText) throw new Error('Message text is required.');
 
@@ -1835,3 +2003,4 @@ export async function fetchAuditLogsAdmin(): Promise<AuditLog[]> {
     handleFirestoreError(err, OperationType.LIST, 'auditLogs');
   }
 }
+
