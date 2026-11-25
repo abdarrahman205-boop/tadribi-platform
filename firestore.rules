@@ -54,6 +54,7 @@ service cloud.firestore {
           'emailVerified', 'disabled', 'activePlanSlug', 'activePlanNameAr',
           'activePlanNameFr', 'subscriptionExpiresAt', 'profileCompleted',
           'authProvider', 'acceptedTermsAt', 'acceptedPrivacyAt',
+          'teacherCategory', 'professorSpecialty',
           'createdAt', 'updatedAt'
         ]) &&
         d.uid == uid &&
@@ -61,7 +62,18 @@ service cloud.firestore {
         d.role in ['student', 'admin'] &&
         d.track in ['arabic', 'french', 'bilingual'] &&
         d.preferredLang in ['ar', 'fr', 'en'] &&
-        d.level in ['foundation', 'intermediate', 'advanced'] &&
+        d.level in [
+          'foundation', 'intermediate', 'advanced',
+          'prep_student', 'highschool_student', 'university_student',
+          'teacher', 'professor'
+        ] &&
+        (!d.keys().hasAny(['teacherCategory']) ||
+          d.teacherCategory == null ||
+          d.teacherCategory == '' ||
+          d.teacherCategory in ['bilingual', 'arabic', 'french']) &&
+        (!d.keys().hasAny(['professorSpecialty']) ||
+          d.professorSpecialty == null ||
+          isBoundedStr(d.professorSpecialty, 120)) &&
         d.emailVerified is bool &&
         d.disabled is bool &&
         (!d.keys().hasAny(['activePlanSlug']) || isBoundedStr(d.activePlanSlug, 64)) &&
@@ -525,7 +537,8 @@ service cloud.firestore {
             incoming().disabled == existing().disabled &&
             incoming().diff(existing()).affectedKeys().hasOnly([
               'name', 'track', 'preferredLang', 'level', 'emailVerified',
-              'profileCompleted', 'acceptedTermsAt', 'acceptedPrivacyAt', 'updatedAt'
+              'profileCompleted', 'acceptedTermsAt', 'acceptedPrivacyAt',
+              'teacherCategory', 'professorSpecialty', 'updatedAt'
             ])
           )
         );

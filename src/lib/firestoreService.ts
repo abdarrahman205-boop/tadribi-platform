@@ -285,6 +285,12 @@ async function runEnsureUserDocuments(
     track: (d.track as User['track']) || 'bilingual',
     preferred_lang: (d.preferredLang as Language) || 'ar',
     level: (d.level as LevelSlug) || 'foundation',
+    teacher_category:
+      ['bilingual', 'arabic', 'french'].includes(String(d.teacherCategory || ''))
+        ? (d.teacherCategory as User['teacher_category'])
+        : null,
+    professor_specialty:
+      typeof d.professorSpecialty === 'string' ? d.professorSpecialty : null,
     profileCompleted: computedProfileCompleted,
     authProvider: storedProvider,
     acceptedTermsAt: d.acceptedTermsAt ? String(d.acceptedTermsAt) : null,
@@ -324,6 +330,8 @@ export async function updateMyProfileDoc(
     track: 'arabic' | 'french' | 'bilingual';
     preferredLang: Language;
     level: LevelSlug;
+    teacherCategory?: 'bilingual' | 'arabic' | 'french' | null;
+    professorSpecialty?: string | null;
     profileCompleted?: boolean;
     acceptedTermsAt?: string | null;
     acceptedPrivacyAt?: string | null;
@@ -338,6 +346,16 @@ export async function updateMyProfileDoc(
     track: patch.track,
     preferredLang: patch.preferredLang,
     level: patch.level,
+    ...(patch.teacherCategory !== undefined
+      ? { teacherCategory: patch.teacherCategory }
+      : {}),
+    ...(patch.professorSpecialty !== undefined
+      ? {
+          professorSpecialty: patch.professorSpecialty
+            ? clip(patch.professorSpecialty, 120)
+            : null,
+        }
+      : {}),
     emailVerified: Boolean(auth.currentUser?.emailVerified),
     updatedAt: serverTimestamp(),
   };
@@ -382,15 +400,39 @@ export async function updateMyPrivateContactDoc(
   patch: { phone?: string; wilaya?: string; city?: string; institution?: string }
 ): Promise<void> {
   try {
-    await updateDoc(doc(db, 'users', uid, 'private', 'info'), {
+    const currentUser = auth.currentUser;
+    if (!currentUser || currentUser.uid !== uid) {
+      throw new Error('You must be signed in to update this profile.');
+    }
+
+    const ref = doc(db, 'users', uid, 'private', 'info');
+    const contactPayload = {
       phone: clip(patch.phone, 40),
       wilaya: clip(patch.wilaya, 100),
       city: clip(patch.city, 100),
       institution: clip(patch.institution, 140),
       updatedAt: serverTimestamp(),
-    });
+    };
+
+    const existing = await getDoc(ref);
+
+    if (existing.exists()) {
+      await updateDoc(ref, contactPayload);
+    } else {
+      const email = (currentUser.email || '').trim().toLowerCase();
+      if (!email) {
+        throw new Error('An email address is required to create private profile information.');
+      }
+
+      await setDoc(ref, {
+        uid,
+        email: clip(email, 200),
+        createdAt: serverTimestamp(),
+        ...contactPayload,
+      });
+    }
   } catch (err) {
-    handleFirestoreError(err, OperationType.UPDATE, `users/${uid}/private/info`);
+    handleFirestoreError(err, OperationType.WRITE, `users/${uid}/private/info`);
   }
 }
 

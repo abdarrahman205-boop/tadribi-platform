@@ -702,7 +702,9 @@ app.patch('/api/auth/profile', requireAuth, (req: AuthenticatedRequest, res) => 
       : user.teacher_category || '';
   const nextProfessorSpecialty =
     professor_specialty !== undefined
-      ? String(professor_specialty).trim().slice(0, 120)
+      ? (typeof professor_specialty === 'string'
+          ? professor_specialty.trim().slice(0, 120)
+          : '')
       : user.professor_specialty || '';
   const nextPhone = typeof phone === 'string' ? phone.trim().slice(0, 40) : user.phone || '';
   const nextSoundEnabled =

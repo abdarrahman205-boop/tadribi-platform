@@ -23,7 +23,7 @@ import {
 import { VerifiedBadge } from '../components/VerifiedBadge';
 import { useApp } from '../context/AppContext';
 import { getT } from '../i18n/translations';
-import type { EducatorCard, StudentInstitutionalSummary, StudentStudyGoals } from '../types';
+import type { EducatorCard, StudentStudyGoals } from '../types';
 import { apiRequest } from '../utils/api';
 import { formatUserLevelLabel } from '../utils/levelLabels';
 import { tr } from '../utils/locale';
@@ -56,6 +56,91 @@ interface HistoryRow {
   percentage: number;
 }
 
+interface DashboardInstitutionalData {
+  pendingInvitations: Array<{
+    member_id: number;
+    section_id: number;
+    title: string;
+    share_code?: string;
+    teacher_name: string;
+    teacher_verified?: number | boolean;
+    school_name?: string;
+  }>;
+  joinedSections: Array<{
+    id: number;
+    title: string;
+    share_code: string;
+    teacher_name?: string;
+    teacher_verified?: number | boolean;
+    school_name?: string;
+  }>;
+  evaluations: Array<{
+    id: number;
+    section_title: string;
+    score?: number | null;
+    max_score?: number;
+    comment?: string;
+  }>;
+  followedEducators: Array<{
+    id: number;
+    name: string;
+    verified_account?: number | boolean;
+  }>;
+  followedSchools: Array<{
+    id: number;
+    name: string;
+    verified_account?: number | boolean;
+  }>;
+}
+
+type DashboardInvitationApiItem = {
+  member_id?: number | string;
+  section_id?: number | string;
+  title?: string;
+  section_name?: string;
+  subject_name?: string;
+  share_code?: string;
+  teacher_name?: string;
+  teacher_verified?: number | boolean;
+  school_name?: string;
+};
+
+type DashboardJoinedSectionApiItem = {
+  id?: number | string;
+  title?: string;
+  name?: string;
+  section_name?: string;
+  subject_name?: string;
+  share_code?: string;
+  teacher_name?: string;
+  teacher_verified?: number | boolean;
+  school_name?: string;
+};
+
+type DashboardEvaluationApiItem = {
+  id?: number | string;
+  section_title?: string;
+  section_name?: string;
+  score?: number | string | null;
+  max_score?: number | string;
+  comment?: string;
+};
+
+type DashboardFollowedApiItem = {
+  id: number | string;
+  name?: string;
+  verified_account?: number | boolean;
+};
+
+type DashboardInstitutionalApiResponse = {
+  pendingInvitations?: DashboardInvitationApiItem[];
+  invitations?: DashboardInvitationApiItem[];
+  joinedSections?: DashboardJoinedSectionApiItem[];
+  evaluations?: DashboardEvaluationApiItem[];
+  followedEducators?: DashboardFollowedApiItem[];
+  followedSchools?: DashboardFollowedApiItem[];
+};
+
 export const DashboardPage: React.FC = () => {
   const { lang, user, goToAuth, navigate } = useApp();
   const t = getT(lang);
@@ -76,7 +161,7 @@ export const DashboardPage: React.FC = () => {
   const [pomoRunning, setPomoRunning] = useState(false);
 
   const [loading, setLoading] = useState(true);
-  const [institutional, setInstitutional] = useState<StudentInstitutionalSummary | null>(null);
+  const [institutional, setInstitutional] = useState<DashboardInstitutionalData | null>(null);
   const [educators, setEducators] = useState<EducatorCard[]>([]);
   const [followingUserIds, setFollowingUserIds] = useState<Set<number>>(new Set());
   const [inviteBusyId, setInviteBusyId] = useState<number | null>(null);
@@ -85,19 +170,101 @@ export const DashboardPage: React.FC = () => {
   const loadInstitutional = async () => {
     try {
       const [instRes, eduRes, folRes] = await Promise.all([
-        apiRequest<StudentInstitutionalSummary>('/api/student/institutional-summary').catch(() => null),
+        apiRequest<DashboardInstitutionalApiResponse>('/api/student/institutional-summary').catch(() => null),
         apiRequest<{ educators?: EducatorCard[] }>('/api/educators').catch(() => ({ educators: [] })),
-        apiRequest<{ followedUsers?: Array<{ id: number }> }>('/api/follows/mine').catch(() => ({
-          followedUsers: [],
-        })),
+        apiRequest<{
+          users?: DashboardFollowedApiItem[];
+          schools?: DashboardFollowedApiItem[];
+          followedUsers?: DashboardFollowedApiItem[];
+        }>('/api/follows/mine').catch(() => ({ users: [] as DashboardFollowedApiItem[], schools: [] as DashboardFollowedApiItem[], followedUsers: [] as DashboardFollowedApiItem[] })),
       ]);
-      if (instRes) setInstitutional(instRes);
+
+      const rawInvitations = Array.isArray(instRes?.pendingInvitations)
+        ? instRes.pendingInvitations
+        : Array.isArray(instRes?.invitations)
+          ? instRes.invitations
+          : [];
+
+      const pendingInvitations = rawInvitations
+        .map((inv) => ({
+          member_id: Number(inv.member_id),
+          section_id: Number(inv.section_id),
+          title: String(inv.title || inv.section_name || inv.subject_name || ''),
+          share_code: inv.share_code,
+          teacher_name: String(inv.teacher_name || ''),
+          teacher_verified: inv.teacher_verified,
+          school_name: inv.school_name,
+        }))
+        .filter((inv) => Number.isFinite(inv.member_id) && Number.isFinite(inv.section_id));
+
+      const joinedSections = (Array.isArray(instRes?.joinedSections) ? instRes.joinedSections : [])
+        .map((section) => ({
+          id: Number(section.id),
+          title: String(section.title || section.name || section.section_name || section.subject_name || ''),
+          share_code: String(section.share_code || ''),
+          teacher_name: section.teacher_name,
+          teacher_verified: section.teacher_verified,
+          school_name: section.school_name,
+        }))
+        .filter((section) => Number.isFinite(section.id));
+
+      const evaluations = (Array.isArray(instRes?.evaluations) ? instRes.evaluations : [])
+        .map((evaluation) => ({
+          id: Number(evaluation.id),
+          section_title: String(evaluation.section_title || evaluation.section_name || ''),
+          score: evaluation.score == null ? null : Number(evaluation.score),
+          max_score: evaluation.max_score == null ? undefined : Number(evaluation.max_score),
+          comment: evaluation.comment,
+        }))
+        .filter((evaluation) => Number.isFinite(evaluation.id));
+
+      const rawFollowedUsers = Array.isArray(folRes?.users)
+        ? folRes.users
+        : Array.isArray(folRes?.followedUsers)
+          ? folRes.followedUsers
+          : [];
+
+      const rawFollowedSchools = Array.isArray(folRes?.schools) ? folRes.schools : [];
+
+      const followedEducators = (
+        Array.isArray(instRes?.followedEducators)
+          ? instRes.followedEducators
+          : rawFollowedUsers
+      )
+        .map((item) => ({
+          id: Number(item.id),
+          name: String(item.name || ''),
+          verified_account: item.verified_account ?? 0,
+        }))
+        .filter((item) => Number.isFinite(item.id));
+
+      const followedSchools = (
+        Array.isArray(instRes?.followedSchools)
+          ? instRes.followedSchools
+          : rawFollowedSchools
+      )
+        .map((item) => ({
+          id: Number(item.id),
+          name: String(item.name || ''),
+          verified_account: item.verified_account ?? 0,
+        }))
+        .filter((item) => Number.isFinite(item.id));
+
+      setInstitutional({
+        pendingInvitations,
+        joinedSections,
+        evaluations,
+        followedEducators,
+        followedSchools,
+      });
+
       if (Array.isArray(eduRes?.educators)) setEducators(eduRes.educators);
-      if (Array.isArray(folRes?.followedUsers)) {
-        setFollowingUserIds(new Set(folRes.followedUsers.map((u) => Number(u.id))));
-      }
+
+      setFollowingUserIds(
+        new Set(rawFollowedUsers.map((item) => Number(item.id)).filter(Number.isFinite))
+      );
     } catch {
-      // ignore
+      // Keep the dashboard available if an optional institutional request fails.
     }
   };
 
@@ -116,8 +283,13 @@ export const DashboardPage: React.FC = () => {
           apiRequest<{ goals?: StudentStudyGoals }>('/api/student/goals').catch(() => ({ goals: undefined })),
         ]);
         if (active) {
-          setStats(st);
-          setHistory(hist.history || []);
+          setStats({
+            ...st,
+            trend: Array.isArray(st?.trend) ? st.trend : [],
+            strongTopics: Array.isArray(st?.strongTopics) ? st.strongTopics : [],
+            weakTopics: Array.isArray(st?.weakTopics) ? st.weakTopics : [],
+          });
+          setHistory(Array.isArray(hist?.history) ? hist.history : []);
           if (goalsResp.goals) {
             setGoals(goalsResp.goals);
             setGoalMinutes(goalsResp.goals.daily_target_minutes || 45);

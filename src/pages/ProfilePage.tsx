@@ -115,7 +115,7 @@ export const ProfilePage: React.FC = () => {
   const [track, setTrack] = useState<'arabic' | 'french' | 'bilingual'>(user?.track || 'bilingual');
   const [preferredLang, setPreferredLang] = useState<Language>(user?.preferred_lang || lang);
   const [level, setLevel] = useState<LevelSlug>(user?.level || 'foundation');
-  const [teacherCategory, setTeacherCategory] = useState(user?.teacher_category || '');
+  const [teacherCategory, setTeacherCategory] = useState<string>(user?.teacher_category || '');
   const [professorSpecialty, setProfessorSpecialty] = useState(user?.professor_specialty || '');
 
   const [verifReq, setVerifReq] = useState<VerificationRequestItem | null>(null);
@@ -308,13 +308,22 @@ export const ProfilePage: React.FC = () => {
           track,
           preferredLang,
           level,
+          teacherCategory:
+            level === 'teacher' &&
+            (teacherCategory === 'bilingual' ||
+              teacherCategory === 'arabic' ||
+              teacherCategory === 'french')
+              ? teacherCategory
+              : null,
+          professorSpecialty:
+            level === 'professor' ? professorSpecialty.trim() : null,
           profileCompleted: true,
         });
         await updateMyPrivateContactDoc(user.uid, {
           phone: phone.trim(),
           wilaya: wilaya.trim(),
           city: city.trim(),
-        }).catch(() => {});
+        });
       }
 
       if (auth.currentUser && auth.currentUser.displayName !== name.trim()) {
@@ -332,7 +341,7 @@ export const ProfilePage: React.FC = () => {
           teacher_category: level === 'teacher' ? teacherCategory : null,
           professor_specialty: level === 'professor' ? professorSpecialty : null,
         },
-      }).catch(() => {});
+      });
 
       setSelectedTrack(track);
       setLang(preferredLang);
