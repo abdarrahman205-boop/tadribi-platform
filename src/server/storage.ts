@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { db } from './db';
 
-const LOCAL_UPLOAD_ROOT = path.resolve(process.cwd(), 'data', 'uploads');
+const LOCAL_UPLOAD_ROOT = path.resolve(process.env.DATA_DIR?.trim() || path.resolve(process.cwd(), 'data'), 'uploads');
 
 function ensureLocalUploadRoot(): void {
   if (!fs.existsSync(LOCAL_UPLOAD_ROOT)) {
