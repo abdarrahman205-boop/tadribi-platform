@@ -215,15 +215,20 @@ export const nardopayWebhookHandler: express.RequestHandler = (req, res) => {
     return;
   }
 
-  if (['payment.completed', 'payment.succeeded', 'subscription.renewed'].includes(eventType)) {
-    const incomingAmount = Number(data?.amount ?? order.amount);
-    const incomingCurrency = String(data?.currency || order.currency || 'MRU').trim().toUpperCase();
+  if (eventType === 'payment.completed') {
+    const incomingStatus = String(data?.status || '').trim().toLowerCase();
+    if (incomingStatus !== 'completed') {
+      res.status(422).json({ error: 'Payment is not completed' });
+      return;
+    }
+    const incomingAmount = Number(data?.amount);
+    const incomingCurrency = String(data?.currency || '').trim().toUpperCase();
     const expectedAmount = Number(order.amount);
     const expectedCurrency = String(order.currency || 'MRU').trim().toUpperCase();
 
     if (
       !Number.isFinite(incomingAmount) ||
-      Math.abs(incomingAmount - expectedAmount) > 0.01 ||
+      Math.abs(incomingAmount - expectedAmount) > 0.000001 ||
       incomingCurrency !== expectedCurrency
     ) {
       db.prepare(
@@ -244,6 +249,10 @@ export const nardopayWebhookHandler: express.RequestHandler = (req, res) => {
     }
 
     const plan = db.prepare('SELECT * FROM subscription_plans WHERE id = ?').get(order.plan_id) as any;
+    if (!plan) {
+      res.status(500).json({ error: 'Subscription plan not found' });
+      return;
+    }
     const now = new Date();
     const startsAtIso = now.toISOString();
     const durationDays = Number(plan?.duration_days || 30);
@@ -508,61 +517,69 @@ export function createPaymentRouter() {
     let checkoutUrl = '';
     let providerSessionId = '';
     let widgetToken = '';
+    let nardoLinkId = '';
+    let nardoLinkCode = '';
 
-    try {
-      const apiResp = await fetch(`${cfg.apiBase}/checkout/sessions`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${cfg.apiKey}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify({
-          order_id: orderId,
-          amount,
-          currency,
-          merchant_id: cfg.merchantId || undefined,
-          customer: {
-            id: String(req.authUser!.userId),
-            name: userRow?.name || '',
-            email: userRow?.email || req.authUser!.email,
-            phone: userRow?.phone || '',
-          },
-          description: `Tedribi Subscription - ${plan.name_ar}`,
-          payment_method: String(preferredMethod || 'card'),
-          success_url: `${PUBLIC_APP_ORIGIN}/checkout/${encodeURIComponent(plan.slug)}?orderId=${encodeURIComponent(orderId)}&status=success`,
-          cancel_url: `${PUBLIC_APP_ORIGIN}/checkout/${encodeURIComponent(plan.slug)}?orderId=${encodeURIComponent(orderId)}&status=cancelled`,
-          webhook_url: `${(process.env.VITE_API_BASE_URL || 'https://api.tadribi.chtbqi.com').replace(/\/+$/, '')}/webhooks/nardopay`,
-          metadata: {
-            order_id: orderId,
-            user_id: req.authUser!.userId,
-            plan_id: plan.id,
-            plan_slug: plan.slug,
-          },
-        }),
-        signal: AbortSignal.timeout(15000),
-      });
-
-      const apiData = (await apiResp.json().catch(() => ({}))) as any;
-      if (!apiResp.ok) {
-        res.status(502).json({
-          code: 'NARDOPAY_SESSION_FAILED',
-          error: apiData?.message || apiData?.error || 'تعذر إنشاء جلسة الدفع لدى NardoPay حالياً.',
-        });
-        return;
-      }
-
-      checkoutUrl = String(apiData?.checkout_url || apiData?.url || apiData?.data?.checkout_url || '');
-      providerSessionId = String(apiData?.session_id || apiData?.id || apiData?.data?.id || '');
-      widgetToken = String(apiData?.widget_token || apiData?.client_token || apiData?.data?.token || '');
-    } catch {
-      res.status(502).json({
-        code: 'NARDOPAY_UNREACHABLE',
-        error: 'تعذر الاتصال بخادم NardoPay حالياً. يرجى إعادة المحاولة أو استخدام الدفع المحلي.',
+    if (currency !== 'MRU') {
+      res.status(400).json({
+        code: 'NARDOPAY_CURRENCY_NOT_SUPPORTED',
+        error: 'NardoPay payment links require MRU currency.',
       });
       return;
     }
 
+    try {
+      const apiResp = await fetch(
+        'https://mczqwqsvumfsneoknlep.supabase.co/functions/v1/create-payment-link-api',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${cfg.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            link_type: 'payment',
+            product_name: `Tadribi - ${plan.name_ar}`,
+            amount_mode: 'fixed',
+            amount,
+            currency: 'MRU',
+            metadata: {
+              order_id: orderId,
+            },
+            webhook_url: `${(process.env.VITE_API_BASE_URL || 'https://api.tadribi.chtbqi.com').replace(/\/+$/, '')}/webhooks/nardopay`,
+          }),
+          signal: AbortSignal.timeout(20000),
+        }
+      );
+
+      const apiData = (await apiResp.json().catch(() => ({}))) as any;
+      const returnedCurrency = String(apiData?.currency || '').toUpperCase();
+
+      if (
+        !apiResp.ok ||
+        apiData?.success !== true ||
+        !apiData?.link_code ||
+        !apiData?.url ||
+        returnedCurrency !== 'MRU'
+      ) {
+        res.status(502).json({
+          code: 'NARDOPAY_LINK_FAILED',
+          error: apiData?.message || apiData?.error ||
+            'Could not create a valid MRU payment link with NardoPay.',
+        });
+        return;
+      }
+
+      checkoutUrl = String(apiData.url);
+      nardoLinkId = String(apiData.link_id || '');
+      nardoLinkCode = String(apiData.link_code);
+    } catch {
+      res.status(502).json({
+        code: 'NARDOPAY_UNREACHABLE',
+        error: 'Could not connect to NardoPay. Please try again.',
+      });
+      return;
+    }
     db.prepare(
       `INSERT INTO payment_orders (
         order_id, user_id, plan_id, provider, amount, currency, status,
@@ -576,7 +593,7 @@ export function createPaymentRouter() {
       currency,
       providerSessionId,
       checkoutUrl,
-      JSON.stringify({ planSlug: plan.slug, preferredMethod: String(preferredMethod || 'card') })
+      JSON.stringify({ planSlug: plan.slug, preferredMethod: String(preferredMethod || 'card'), nardoLinkId, nardoLinkCode })
     );
 
     logAudit(req.authUser!.userId, req.authUser!.email, 'NARDOPAY_ORDER_CREATED', 'payment_order', orderId, `Plan=${plan.slug};Amount=${amount}`);
