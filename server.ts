@@ -94,6 +94,189 @@ app.use((req, res, next) => {
   }
   next();
 });
+app.post('/webhooks/nardopay', express.raw({ type: 'application/json' }), (req, res) => {
+  const secret = (process.env.NARDOPAY_WEBHOOK_SECRET || '').trim();
+  const signature = String(req.headers['x-nardopay-signature'] || '');
+  const rawBody = req.body;
+
+  if (!secret || !Buffer.isBuffer(rawBody) || !/^[a-f0-9]{64}$/i.test(signature)) {
+    res.status(401).json({ error: 'Invalid webhook authentication.' });
+    return;
+  }
+
+  const expected = crypto.createHmac('sha256', secret).update(rawBody).digest();
+  const received = Buffer.from(signature, 'hex');
+
+  if (received.length !== expected.length || !crypto.timingSafeEqual(received, expected)) {
+    res.status(401).json({ error: 'Invalid webhook signature.' });
+    return;
+  }
+
+  let event: any;
+  try {
+    event = JSON.parse(rawBody.toString('utf8'));
+  } catch {
+    res.status(400).json({ error: 'Invalid webhook JSON.' });
+    return;
+  }
+
+  const eventName = String(event?.event || '');
+  const transactionId = String(event?.transaction_id || '');
+  const deliveryId = String(req.headers['x-nardopay-delivery'] || '');
+
+  if (eventName === 'webhook.test') {
+    res.status(200).json({ received: true, test: true });
+    return;
+  }
+
+  if (!transactionId || !['payment.completed', 'payment.failed'].includes(eventName)) {
+    res.status(200).json({ received: true, ignored: true });
+    return;
+  }
+
+  if (eventName === 'payment.failed') {
+    try {
+      db.prepare(`
+        INSERT OR IGNORE INTO nardopay_webhook_events
+          (transaction_id, event_name, delivery_id)
+        VALUES (?, ?, ?)
+      `).run(transactionId, eventName, deliveryId || null);
+
+      const orderId = String(event?.metadata?.order_id || '');
+      if (orderId) {
+        db.prepare(`
+          UPDATE nardopay_payment_orders
+          SET status = 'failed'
+          WHERE id = ? AND status = 'pending'
+        `).run(orderId);
+      }
+
+      res.status(200).json({ received: true });
+    } catch {
+      res.status(500).json({ error: 'Webhook processing failed.' });
+    }
+    return;
+  }
+
+  if (String(event?.status || '').toLowerCase() !== 'completed') {
+    res.status(200).json({ received: true, ignored: true });
+    return;
+  }
+
+  const orderId = String(event?.metadata?.order_id || '');
+  if (!orderId) {
+    res.status(200).json({ received: true, ignored: true });
+    return;
+  }
+
+  const order = db.prepare(
+    'SELECT * FROM nardopay_payment_orders WHERE id = ?'
+  ).get(orderId) as any;
+
+  if (!order || order.status !== 'pending') {
+    res.status(200).json({ received: true, ignored: true });
+    return;
+  }
+
+  const receivedAmount = Number(event?.amount);
+  const receivedCurrency = String(event?.currency || '').toUpperCase();
+
+  if (
+    !Number.isFinite(receivedAmount) ||
+    Math.abs(receivedAmount - Number(order.amount_mru)) > 0.000001 ||
+    receivedCurrency !== String(order.expected_currency).toUpperCase()
+  ) {
+    res.status(200).json({ received: true, ignored: true, reason: 'payment_mismatch' });
+    return;
+  }
+
+  const plan = db.prepare(
+    'SELECT * FROM subscription_plans WHERE id = ?'
+  ).get(order.plan_id) as any;
+
+  if (!plan) {
+    res.status(500).json({ error: 'Subscription plan not found.' });
+    return;
+  }
+
+  const now = new Date();
+  const startsAtIso = now.toISOString();
+  const durationDays = Number(plan.duration_days || 30);
+  const expiresDate =
+    plan.billing_cycle === 'annual' || plan.slug === 'annual-concours'
+      ? addFullMonths(now, 12)
+      : new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+  const expiresAtIso = expiresDate.toISOString();
+
+  try {
+    const processPayment = db.transaction(() => {
+      const inserted = db.prepare(`
+        INSERT OR IGNORE INTO nardopay_webhook_events
+          (transaction_id, event_name, delivery_id)
+        VALUES (?, ?, ?)
+      `).run(transactionId, eventName, deliveryId || null);
+
+      if (Number(inserted.changes) === 0) {
+        return false;
+      }
+
+      const updated = db.prepare(`
+        UPDATE nardopay_payment_orders
+        SET status = 'completed',
+            provider_tx_id = ?,
+            provider_reference = ?,
+            paid_at = ?
+        WHERE id = ? AND status = 'pending'
+      `).run(
+        transactionId,
+        String(event?.reference || ''),
+        startsAtIso,
+        orderId
+      );
+
+      if (Number(updated.changes) !== 1) {
+        throw new Error('ORDER_NOT_PENDING');
+      }
+
+      db.prepare(`
+        UPDATE user_subscriptions
+        SET status = 'expired'
+        WHERE user_id = ? AND status = 'active'
+      `).run(order.user_id);
+
+      db.prepare(`
+        INSERT INTO user_subscriptions
+          (user_id, plan_id, status, starts_at, expires_at, payment_tx_id)
+        VALUES (?, ?, 'active', ?, ?, NULL)
+      `).run(order.user_id, order.plan_id, startsAtIso, expiresAtIso);
+
+      db.prepare(`
+        INSERT INTO notifications
+          (user_id, title_ar, title_fr, body_ar, body_fr, type)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(
+        order.user_id,
+        `تم تفعيل اشتراكك عبر NardoPay (${plan.name_ar})`,
+        `Abonnement activé via NardoPay (${plan.name_fr})`,
+        `تم تأكيد الدفع وتفعيل الباقة حتى ${expiresAtIso.slice(0, 10)}.`,
+        `Votre paiement est confirmé. Votre abonnement est actif jusqu'au ${expiresAtIso.slice(0, 10)}.`,
+        'info'
+      );
+
+      return true;
+    });
+
+    const activated = processPayment();
+    res.status(200).json({ received: true, activated });
+  } catch (error: any) {
+    if (String(error?.message || '').includes('ORDER_NOT_PENDING')) {
+      res.status(200).json({ received: true, ignored: true });
+      return;
+    }
+
+    res.status(500).json({ error: 'Webhook processing failed.' });
+  }
+});
 app.use(express.json({ limit: '10mb' }));
 app.use(verifyCsrfForMutations);
 app.use(attachAuthIfPresent);
@@ -4843,6 +5026,113 @@ app.post('/api/payments/checkout', requireAuth, async (req: AuthenticatedRequest
   });
 });
 
+app.post('/api/payments/nardopay/create', requireAuth, async (req: AuthenticatedRequest, res) => {
+  const apiKey = (process.env.NARDOPAY_API_KEY || '').trim();
+
+  if (!apiKey) {
+    res.status(503).json({
+      error: 'بوابة NardoPay غير مهيأة على الخادم.'
+    });
+    return;
+  }
+
+  const planId = Number(req.body?.planId);
+  if (!Number.isInteger(planId) || planId <= 0) {
+    res.status(400).json({ error: 'معرّف الباقة غير صالح.' });
+    return;
+  }
+
+  const plan = db.prepare(
+    'SELECT * FROM subscription_plans WHERE id = ? AND active = 1'
+  ).get(planId) as any;
+
+  if (!plan || Number(plan.price_mru) <= 0) {
+    res.status(404).json({ error: 'الخطة المدفوعة المطلوبة غير موجودة.' });
+    return;
+  }
+
+  const orderId = crypto.randomUUID();
+  const amount = Number(plan.price_mru);
+
+  db.prepare(`
+    INSERT INTO nardopay_payment_orders
+      (id, user_id, plan_id, amount_mru, expected_currency, status)
+    VALUES (?, ?, ?, ?, 'MRU', 'pending')
+  `).run(orderId, req.authUser!.userId, plan.id, amount);
+
+  try {
+    const response = await fetch(
+      'https://mczqwqsvumfsneoknlep.supabase.co/functions/v1/create-payment-link-api',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          link_type: 'payment',
+          product_name: `Tadribi - ${plan.name_ar}`,
+          amount_mode: 'fixed',
+          amount,
+          currency: 'MRU',
+          metadata: { order_id: orderId },
+          webhook_url: 'https://api.tadribi.chtbqi.com/webhooks/nardopay',
+        }),
+        signal: AbortSignal.timeout(20000),
+      }
+    );
+
+    const data = await response.json() as any;
+
+    if (
+      !response.ok ||
+      data?.success !== true ||
+      !data?.link_code ||
+      !data?.url ||
+      String(data?.currency || '').toUpperCase() !== 'MRU'
+    ) {
+      db.prepare(
+        "UPDATE nardopay_payment_orders SET status = 'failed' WHERE id = ? AND status = 'pending'"
+      ).run(orderId);
+
+      res.status(502).json({
+        error: 'تعذر إنشاء رابط دفع صالح بالعملة MRU لدى NardoPay. لم يتم تفعيل أي اشتراك.'
+      });
+      return;
+    }
+
+    db.prepare(`
+      UPDATE nardopay_payment_orders
+      SET nardopay_link_id = ?,
+          nardopay_link_code = ?,
+          checkout_url = ?
+      WHERE id = ? AND status = 'pending'
+    `).run(
+      String(data.link_id || ''),
+      String(data.link_code),
+      String(data.url),
+      orderId
+    );
+
+    res.status(201).json({
+      ok: true,
+      orderId,
+      checkoutUrl: String(data.url),
+      linkCode: String(data.link_code),
+      amount,
+      currency: 'MRU',
+      planName: String(plan.name_ar),
+    });
+  } catch {
+    db.prepare(
+      "UPDATE nardopay_payment_orders SET status = 'failed' WHERE id = ? AND status = 'pending'"
+    ).run(orderId);
+
+    res.status(502).json({
+      error: 'تعذر الاتصال بخدمة NardoPay لإنشاء رابط الدفع.'
+    });
+  }
+});
 app.get('/api/payments/mine', requireAuth, (req: AuthenticatedRequest, res) => {
   const rows = db
     .prepare(

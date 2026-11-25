@@ -1647,6 +1647,41 @@ export function initializeDatabase(): void {
   });
   seedBacTx();
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS nardopay_payment_orders (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      plan_id INTEGER NOT NULL,
+      amount_mru REAL NOT NULL,
+      expected_currency TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'completed', 'failed', 'expired')),
+      nardopay_link_id TEXT,
+      nardopay_link_code TEXT,
+      checkout_url TEXT,
+      provider_tx_id TEXT UNIQUE,
+      provider_reference TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      paid_at TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (plan_id) REFERENCES subscription_plans(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_nardopay_orders_user
+      ON nardopay_payment_orders(user_id, created_at);
+
+    CREATE INDEX IF NOT EXISTS idx_nardopay_orders_status
+      ON nardopay_payment_orders(status);
+
+    CREATE TABLE IF NOT EXISTS nardopay_webhook_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      transaction_id TEXT NOT NULL,
+      event_name TEXT NOT NULL,
+      delivery_id TEXT,
+      received_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(transaction_id, event_name)
+    );
+  `);
   expireOverdueSubscriptions();
 }
 
