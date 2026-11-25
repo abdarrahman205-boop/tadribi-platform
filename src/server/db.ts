@@ -1100,6 +1100,11 @@ export function initializeDatabase(): void {
   }
 
   const webhookEventCols = db.prepare('PRAGMA table_info(nardopay_webhook_events)').all() as Array<{ name: string }>;
+
+  if (!webhookEventCols.some((c) => c.name === 'order_id')) {
+    db.exec("ALTER TABLE nardopay_webhook_events ADD COLUMN order_id TEXT NOT NULL DEFAULT ''");
+  }
+
   if (!webhookEventCols.some((c) => c.name === 'provider_tx_id')) {
     db.exec("ALTER TABLE nardopay_webhook_events ADD COLUMN provider_tx_id TEXT NOT NULL DEFAULT ''");
   }
