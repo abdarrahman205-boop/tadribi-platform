@@ -827,7 +827,7 @@ export function initializeDatabase(): void {
       payload_json TEXT NOT NULL DEFAULT '{}',
       processed_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
-    CREATE INDEX IF NOT EXISTS idx_nardopay_events_tx ON nardopay_webhook_events(provider_tx_id, order_id);
+
 
     CREATE TABLE IF NOT EXISTS files (
       id TEXT PRIMARY KEY,
@@ -1093,6 +1093,21 @@ export function initializeDatabase(): void {
     CREATE INDEX IF NOT EXISTS idx_exam_attempts_user_status ON exam_attempts(user_id, status, started_at);
   `);
 
+  // Safe migration for existing payment_orders/nardopay_webhook_events tables
+  const paymentOrderCols = db.prepare('PRAGMA table_info(payment_orders)').all() as Array<{ name: string }>;
+  if (!paymentOrderCols.some((c) => c.name === 'provider_tx_id')) {
+    db.exec("ALTER TABLE payment_orders ADD COLUMN provider_tx_id TEXT NOT NULL DEFAULT ''");
+  }
+
+  const webhookEventCols = db.prepare('PRAGMA table_info(nardopay_webhook_events)').all() as Array<{ name: string }>;
+  if (!webhookEventCols.some((c) => c.name === 'provider_tx_id')) {
+    db.exec("ALTER TABLE nardopay_webhook_events ADD COLUMN provider_tx_id TEXT NOT NULL DEFAULT ''");
+  }
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_nardopay_events_tx
+    ON nardopay_webhook_events(provider_tx_id, order_id);
+  `);
   // Safe migration for users profile audit, specialty, verification & referral fields
   const refreshedUserCols = db.prepare('PRAGMA table_info(users)').all() as Array<{ name: string }>;
   const userColNames = new Set(refreshedUserCols.map((c) => c.name));
