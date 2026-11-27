@@ -56,6 +56,7 @@ export const AppShell: React.FC<AppShellProps> = ({
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const sidebarRef = useRef<HTMLElement>(null);
 
   const brand = tr(lang, 'منصة التدريب الحر', 'Plateforme de Formation Libre', 'Free Training Platform');
@@ -221,7 +222,7 @@ export const AppShell: React.FC<AppShellProps> = ({
                 role="menuitem"
                 onClick={() => {
                   setMenuOpen(false);
-                  onLogout();
+                  setLogoutConfirmOpen(true);
                 }}
                 className="w-full flex items-center gap-2.5 border-t px-3 py-2 text-sm font-bold text-red-700 cursor-pointer hover:bg-red-50"
                 style={{ borderColor: 'var(--line)' }}
@@ -250,6 +251,57 @@ export const AppShell: React.FC<AppShellProps> = ({
           </button>
         </div>
       </aside>
+
+      {logoutConfirmOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="tdr-logout-title"
+          onClick={() => setLogoutConfirmOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border p-6 shadow-2xl"
+            style={{ background: 'var(--card)', color: 'var(--ink)', borderColor: 'var(--line)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 grid h-12 w-12 place-items-center rounded-full bg-red-50 text-red-700">
+              <LogOut className="w-5 h-5" />
+            </div>
+            <h2 id="tdr-logout-title" className="text-base font-extrabold">
+              {tr(lang, 'تسجيل الخروج من الحساب؟', 'Se déconnecter du compte ?', 'Log out of your account?')}
+            </h2>
+            <p className="mt-1.5 text-sm opacity-70">
+              {tr(
+                lang,
+                'ستحتاج إلى تسجيل الدخول مرة أخرى للوصول إلى حسابك.',
+                'Vous devrez vous reconnecter pour accéder à votre compte.',
+                'You will need to sign in again to access your account.'
+              )}
+            </p>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setLogoutConfirmOpen(false)}
+                className="rounded-lg border px-4 py-2 text-sm font-bold cursor-pointer hover:bg-black/5"
+                style={{ borderColor: 'var(--line)' }}
+              >
+                {tr(lang, 'إلغاء', 'Annuler', 'Cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setLogoutConfirmOpen(false);
+                  onLogout();
+                }}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white cursor-pointer hover:bg-red-700"
+              >
+                {tr(lang, 'تسجيل الخروج', 'Se déconnecter', 'Log out')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="ps-0 lg:ps-[264px]">
         <header

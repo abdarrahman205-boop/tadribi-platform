@@ -27,6 +27,7 @@ import {
   Users,
   Volume2,
   Wallet,
+  Fingerprint,
 } from 'lucide-react';
 import { VerifiedBadge } from '../VerifiedBadge';
 import { useApp } from '../../context/AppContext';
@@ -53,6 +54,7 @@ import {
 import { MobileSubscriptionsView } from './MobileSubscriptionViews';
 import { isNativeApp } from '../../lib/deviceMode';
 import { requestNotificationPermission } from '../../lib/permissions';
+import { isBiometricAvailable, isBiometricEnabled, setBiometricEnabled, verifyWithBiometric } from '../../lib/biometric';
 
 export type MobileMenuSubView =
   | 'root'
@@ -103,6 +105,11 @@ export const MobileMenuView: React.FC<{
   const isAr = lang === 'ar';
 
   const [permSheet, setPermSheet] = useState<'geo' | 'notif' | null>(null);
+  const [bioAvailable, setBioAvailable] = useState(false);
+  const [bioOn, setBioOn] = useState<boolean>(() => isBiometricEnabled());
+  useEffect(() => {
+    void isBiometricAvailable().then(setBioAvailable);
+  }, []);
   const [langSheetOpen, setLangSheetOpen] = useState(false);
   const [logoutSheetOpen, setLogoutSheetOpen] = useState(false);
 
@@ -723,6 +730,35 @@ export const MobileMenuView: React.FC<{
               />
             }
           />
+
+          {bioAvailable && (
+            <MobileListRow
+              dir={isAr ? 'rtl' : 'ltr'}
+              icon={<Fingerprint className="w-5 h-5" />}
+              title={tr(lang, 'الدخول بالبصمة', 'Connexion par empreinte', 'Biometric unlock')}
+              subtitle={bioOn ? tr(lang, 'مفعّل', 'Activé', 'On') : tr(lang, 'غير مفعّل', 'Désactivé', 'Off')}
+              trailing={
+                <MobileGreenSwitch
+                  checked={bioOn}
+                  onChange={async () => {
+                    if (bioOn) {
+                      setBiometricEnabled(false);
+                      setBioOn(false);
+                      return;
+                    }
+                    const ok = await verifyWithBiometric(
+                      tr(lang, 'أكّد هويتك لتفعيل الدخول بالبصمة', 'Confirmez pour activer la connexion par empreinte', 'Confirm to enable biometric unlock')
+                    );
+                    if (ok) {
+                      setBiometricEnabled(true);
+                      setBioOn(true);
+                    }
+                  }}
+                  ariaLabel="Toggle biometric unlock"
+                />
+              }
+            />
+          )}
 
           <MobileListRow
             dir={isAr ? 'rtl' : 'ltr'}

@@ -18,6 +18,9 @@ import {
 } from '../components/mobile/MobilePrimitives';
 import { MobileSplash } from '../components/mobile/MobileSplash';
 import { MobileOnboarding, isOnboardingDone } from '../components/mobile/MobileOnboarding';
+import { MobileBiometricLock } from '../components/mobile/MobileBiometricLock';
+import { isBiometricAvailable, isBiometricEnabled, setBiometricEnabled } from '../lib/biometric';
+import { isNativeApp } from '../lib/deviceMode';
 import { useApp } from '../context/AppContext';
 import { triggerHaptic, useMobilePlatform } from '../hooks/useMobilePlatform';
 import { tr } from '../utils/locale';
@@ -44,6 +47,7 @@ export const MobileAppPage: React.FC = () => {
     reloadVerificationStatus,
     refreshUser,
     refreshCatalog,
+    logout,
   } = useApp();
 
   const {
@@ -60,6 +64,11 @@ export const MobileAppPage: React.FC = () => {
 
   const [splashVisible, setSplashVisible] = useState(true);
   const [onboardingDone, setOnboardingDone] = useState<boolean>(() => isOnboardingDone());
+  const [biometricLocked, setBiometricLocked] = useState<boolean>(false);
+  useEffect(() => {
+    if (!isNativeApp() || !isBiometricEnabled()) return;
+    void isBiometricAvailable().then((ok) => setBiometricLocked(ok));
+  }, []);
   const [activeTab, setActiveTab] = useState<MobileTabId>('home');
   const [learnSubMode, setLearnSubMode] = useState<MobileLearnSubMode>('lessons');
   const [learnSubjectSlug, setLearnSubjectSlug] = useState<string>('all');
@@ -254,6 +263,17 @@ export const MobileAppPage: React.FC = () => {
       <MobileSplash visible={splashVisible} onDone={() => setSplashVisible(false)} />
       {!splashVisible && !onboardingDone && (
         <MobileOnboarding lang={lang} onDone={() => setOnboardingDone(true)} />
+      )}
+      {!splashVisible && onboardingDone && biometricLocked && user && (
+        <MobileBiometricLock
+          lang={lang}
+          onUnlock={() => setBiometricLocked(false)}
+          onUsePassword={() => {
+            setBiometricEnabled(false);
+            setBiometricLocked(false);
+            void logout();
+          }}
+        />
       )}
 
       {!isAuthenticated ? (
