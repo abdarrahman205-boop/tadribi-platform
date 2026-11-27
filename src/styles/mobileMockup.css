@@ -48,7 +48,7 @@
   overflow: hidden;
   background: var(--m-bg);
   color: var(--m-ink);
-  font-family: 'Noto Sans Arabic', 'Noto Naskh Arabic', 'Noto Serif', serif;
+  font-family: 'Noto Sans Arabic', sans-serif;
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
@@ -101,11 +101,11 @@
 }
 
 .tdr-m-naskh {
-  font-family: 'Noto Naskh Arabic', 'Noto Serif', serif;
+  font-family: 'Noto Sans Arabic', sans-serif;
 }
 
 .tdr-m-serif {
-  font-family: 'Noto Serif', 'Noto Naskh Arabic', serif;
+  font-family: 'Noto Sans Arabic', sans-serif;
 }
 
 /* ============================================================================
@@ -734,7 +734,7 @@
   margin: 0 auto;
   padding: 36px 16px 140px;
   text-align: center;
-  font-family: 'Noto Naskh Arabic', 'Noto Serif', serif;
+  font-family: 'Noto Sans Arabic', sans-serif;
   font-size: 14px;
 }
 
@@ -831,7 +831,7 @@
   border-radius: 3px;
   background: var(--m-field);
   color: var(--m-ink);
-  font-family: 'Noto Naskh Arabic', 'Noto Serif', serif;
+  font-family: 'Noto Sans Arabic', sans-serif;
   font-size: 14px;
   padding: 0 12px;
   transition: border-color 0.25s, box-shadow 0.25s;
@@ -947,7 +947,7 @@
   border: 1px solid var(--m-brand-d);
   background: var(--m-brand);
   color: var(--m-btn-ink);
-  font-family: 'Noto Naskh Arabic', 'Noto Serif', serif;
+  font-family: 'Noto Sans Arabic', sans-serif;
   font-size: 14px;
   font-weight: 600;
   min-height: 44px;
@@ -1049,7 +1049,7 @@
 
 .tdr-m-fr {
   margin: 6px 0 14px;
-  font-family: 'Noto Serif', serif;
+  font-family: 'Noto Sans Arabic', sans-serif;
   font-size: 15px;
   color: var(--m-ink);
 }
@@ -1093,7 +1093,7 @@
   border-radius: 4px;
   color: var(--m-err);
   font-weight: 700;
-  font-family: 'Noto Serif', 'Noto Naskh Arabic', serif;
+  font-family: 'Noto Sans Arabic', sans-serif;
   font-size: 13.5px;
   display: flex;
   justify-content: center;
@@ -1468,4 +1468,16 @@
   .tdr-m-auth-title path {
     stroke-dashoffset: 0;
   }
+}
+
+/* Brand logo on auth and onboarding screens */
+.tdr-mobile-app .tdr-m-brand {
+  display: block;
+  height: 64px;
+  width: auto;
+  max-width: 80%;
+  margin: 8px auto 14px;
+  object-fit: contain;
+  -webkit-user-drag: none;
+  user-select: none;
 }

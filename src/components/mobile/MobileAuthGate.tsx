@@ -384,6 +384,7 @@ export const MobileAuthGate: React.FC = () => {
       <div className="tdr-m-scroll-pane relative z-10">
         <MobileBackground />
         <main className="tdr-m-auth-wrap">
+          <img src="/assets/brand/logo-horizontal.webp" alt="تدريبي" draggable={false} className="tdr-m-brand tdr-m-auth-in" />
           <h1 className="tdr-m-auth-title tdr-m-auth-in" style={{ fontSize: '1.65rem' }}>
             {tr(lang, 'إكمال الملف الشخصي', 'Compléter le profil', 'Complete Profile')}
             <HandUnderlineSvg />
@@ -482,6 +483,7 @@ export const MobileAuthGate: React.FC = () => {
       <div className="tdr-m-scroll-pane relative z-10">
         <MobileBackground />
         <main className="tdr-m-auth-wrap">
+          <img src="/assets/brand/logo-horizontal.webp" alt="تدريبي" draggable={false} className="tdr-m-brand tdr-m-auth-in" />
           <h1 className="tdr-m-auth-title tdr-m-auth-in" style={{ fontSize: '1.65rem' }}>
             {tr(lang, 'تأكيد البريد الإلكتروني', 'Vérifier l’e-mail', 'Verify Email')}
             <HandUnderlineSvg />
@@ -627,6 +629,7 @@ export const MobileAuthGate: React.FC = () => {
         {/* ================= 1. LOGIN VIEW (1:1 HTML Layout) ================= */}
         {view === 'login' && (
           <section aria-label="تسجيل الدخول">
+            <img src="/assets/brand/logo-horizontal.webp" alt="تدريبي" draggable={false} className="tdr-m-brand tdr-m-auth-in" />
             <h1 className="tdr-m-auth-title tdr-m-auth-in">
               {tr(lang, 'أهلاً وسهلاً', 'Bienvenue', 'Welcome')}
               <HandUnderlineSvg />
@@ -773,6 +776,8 @@ export const MobileAuthGate: React.FC = () => {
                 {lang === 'fr' ? 'للتسجيل بالعربية *' : 'To sign up in French *'}
               </button>
             </p>
+
+            <img src="/assets/brand/logo-horizontal.webp" alt="تدريبي" draggable={false} className="tdr-m-brand tdr-m-auth-in" />
 
             <h1 className="tdr-m-auth-title tdr-m-auth-in" style={{ '--i': 1, fontSize: '1.7rem' } as React.CSSProperties}>
               {tr(lang, 'إنشاء حساب جديد', 'Créer un compte', 'Create Account')}
@@ -942,6 +947,7 @@ export const MobileAuthGate: React.FC = () => {
         {/* ================= 3. FORGOT PASSWORD 3-STEP FLOW (1:1 HTML Layout) ================= */}
         {view === 'forgot' && (
           <section aria-label="استعادة كلمة المرور">
+            <img src="/assets/brand/logo-horizontal.webp" alt="تدريبي" draggable={false} className="tdr-m-brand tdr-m-auth-in" />
             <h1 className="tdr-m-auth-title tdr-m-auth-in">
               {tr(lang, 'استعادة كلمة المرور', 'Mot de passe oublié', 'Recover Password')}
               <HandUnderlineSvg />

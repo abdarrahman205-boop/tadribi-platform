@@ -17,6 +17,7 @@ import {
   type MobileTabId,
 } from '../components/mobile/MobilePrimitives';
 import { MobileSplash } from '../components/mobile/MobileSplash';
+import { MobileOnboarding, isOnboardingDone } from '../components/mobile/MobileOnboarding';
 import { useApp } from '../context/AppContext';
 import { triggerHaptic, useMobilePlatform } from '../hooks/useMobilePlatform';
 import { tr } from '../utils/locale';
@@ -58,6 +59,7 @@ export const MobileAppPage: React.FC = () => {
   } = useMobilePlatform(theme === 'dark' ? 'dark' : 'light');
 
   const [splashVisible, setSplashVisible] = useState(true);
+  const [onboardingDone, setOnboardingDone] = useState<boolean>(() => isOnboardingDone());
   const [activeTab, setActiveTab] = useState<MobileTabId>('home');
   const [learnSubMode, setLearnSubMode] = useState<MobileLearnSubMode>('lessons');
   const [learnSubjectSlug, setLearnSubjectSlug] = useState<string>('all');
@@ -250,6 +252,9 @@ export const MobileAppPage: React.FC = () => {
     >
       <MobileBackground />
       <MobileSplash visible={splashVisible} onDone={() => setSplashVisible(false)} />
+      {!splashVisible && !onboardingDone && (
+        <MobileOnboarding lang={lang} onDone={() => setOnboardingDone(true)} />
+      )}
 
       {!isAuthenticated ? (
         <MobileAuthGate />

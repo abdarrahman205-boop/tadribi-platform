@@ -51,6 +51,8 @@ import {
   MobileListRow,
 } from './MobilePrimitives';
 import { MobileSubscriptionsView } from './MobileSubscriptionViews';
+import { isNativeApp } from '../../lib/deviceMode';
+import { requestNotificationPermission } from '../../lib/permissions';
 
 export type MobileMenuSubView =
   | 'root'
@@ -242,7 +244,7 @@ export const MobileMenuView: React.FC<{
   };
 
   const handleRequestNotif = async () => {
-    if (typeof window === 'undefined' || !('Notification' in window)) {
+    if (!isNativeApp() && (typeof window === 'undefined' || !('Notification' in window))) {
       setPermSheet(null);
       showNotice(
         tr(lang, 'إشعارات المتصفح غير مدعومة هنا.', 'Notifications non supportées.', 'Notifications unsupported.'),
@@ -250,7 +252,8 @@ export const MobileMenuView: React.FC<{
       );
       return;
     }
-    const result = await window.Notification.requestPermission();
+    // Shows the real system permission dialog (Android / iOS / browser).
+    const result = await requestNotificationPermission();
     setNotifStatus(result);
     setPermSheet(null);
     await apiRequest('/api/auth/permissions', {
@@ -708,7 +711,14 @@ export const MobileMenuView: React.FC<{
             trailing={
               <MobileGreenSwitch
                 checked={notifStatus === 'granted'}
-                onChange={() => setPermSheet('notif')}
+                onChange={() =>
+                  notifStatus === 'granted'
+                    ? showNotice(
+                        tr(lang, 'لإيقاف الإشعارات غيّر الإذن من إعدادات الجهاز.', 'Pour désactiver, modifiez l’autorisation dans les réglages.', 'To turn off, change the permission in device settings.'),
+                        true
+                      )
+                    : void handleRequestNotif()
+                }
                 ariaLabel="Toggle browser notifications"
               />
             }
@@ -722,7 +732,7 @@ export const MobileMenuView: React.FC<{
             trailing={
               <MobileGreenSwitch
                 checked={geoStatus === 'granted'}
-                onChange={() => setPermSheet('geo')}
+                onChange={() => handleRequestGeo()}
                 ariaLabel="Toggle geolocation permission"
               />
             }
