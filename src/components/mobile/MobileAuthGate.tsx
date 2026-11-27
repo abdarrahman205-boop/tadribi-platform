@@ -118,9 +118,6 @@ export const MobileAuthGate: React.FC = () => {
   const [fgNewErr, setFgNewErr] = useState('');
   const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
 
-  // Admin setup info sheet (for "إعداد المدير الأول للمنصة" link)
-  const [adminSheetOpen, setAdminSheetOpen] = useState(false);
-  const [adminStatusInfo, setAdminStatusInfo] = useState<{ adminClaimed?: boolean } | null>(null);
 
   // Post-signup verification & OAuth completion
   const [verifyPending, setVerifyPending] = useState(false);
@@ -744,18 +741,7 @@ export const MobileAuthGate: React.FC = () => {
               </button>
             </p>
 
-            <button
-              type="button"
-              className="tdr-m-admin-lnk tdr-m-auth-in"
-              style={{ '--i': 5 } as React.CSSProperties}
-              onClick={async () => {
-                setAdminSheetOpen(true);
-                const info = await apiRequest<{ adminClaimed?: boolean }>('/api/auth/admin-status').catch(() => null);
-                setAdminStatusInfo(info);
-              }}
-            >
-              {tr(lang, 'إعداد المدير الأول للمنصة', 'Configuration administrateur', 'Admin setup')}
-            </button>
+            
           </section>
         )}
 
@@ -1278,36 +1264,7 @@ export const MobileAuthGate: React.FC = () => {
         )}
       </main>
 
-      {/* First Admin Info Bottom Sheet */}
-      <MobileDarkSheet
-        open={adminSheetOpen}
-        onClose={() => setAdminSheetOpen(false)}
-        icon={<ShieldCheck className="w-6 h-6" />}
-        title={tr(lang, 'إعداد المدير الأول للمنصة', 'Administration initiale', 'First Admin Setup')}
-        description={
-          adminStatusInfo?.adminClaimed
-            ? tr(
-                lang,
-                'تم تأمين حساب المدير الأول للمنصة. سجّل الدخول بحساب المدير الرسمي للوصول إلى لوحة الإدارة.',
-                'Le compte administrateur principal est déjà configuré. Connectez-vous avec le compte officiel.',
-                'Primary administrator account is already claimed. Sign in with the official admin email.'
-              )
-            : tr(
-                lang,
-                'جاري التحقق من حالة المدير للمنصة...',
-                'Vérification du statut administrateur...',
-                'Checking admin setup status...'
-              )
-        }
-      >
-        <button
-          type="button"
-          onClick={() => setAdminSheetOpen(false)}
-          className="tdr-m-sheet-btn tdr-m-sheet-btn--primary"
-        >
-          {tr(lang, 'حسناً', 'Compris', 'OK')}
-        </button>
-      </MobileDarkSheet>
+      
     </div>
   );
 };
