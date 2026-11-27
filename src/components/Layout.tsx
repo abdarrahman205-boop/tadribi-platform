@@ -26,6 +26,7 @@ import { getT } from '../i18n/translations';
 import type { Language, TrackSlug } from '../types';
 import { tr } from '../utils/locale';
 import { AnimatedFooter } from './AnimatedFooter';
+import { AppShell, type ShellItem } from './AppShell';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -61,6 +62,20 @@ function renderTickerParts(rawText: string, questionsCount: number, lessonsCount
     return <React.Fragment key={idx}>{part}</React.Fragment>;
   });
 }
+
+// Views that always use the public website layout, even when logged in.
+const SHELL_PUBLIC_VIEWS: AppView[] = [
+  'login',
+  'register',
+  'forgot-password',
+  'reset-password',
+  'verify-receipt',
+  'about',
+  'privacy',
+  'terms',
+  'contact',
+  'checkout',
+];
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const {
@@ -561,6 +576,37 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         </main>
         <AnimatedFooter />
       </div>
+    );
+  }
+
+  // =========================================================================
+  // LOGGED-IN APP SHELL (desktop): persistent sidebar + account menu.
+  // Public pages (login, register, legal pages) keep the website layout.
+  // =========================================================================
+  if (user && !SHELL_PUBLIC_VIEWS.includes(currentView)) {
+    const tools: ShellItem[] = sidebarItems.filter((item) => item.id !== 'profile');
+    const accountItems: ShellItem[] = [
+      { id: 'profile', label: t.myAccount, icon: UserIcon },
+      { id: 'dashboard', label: t.dashboardAndResults, icon: SlidersHorizontal },
+      { id: 'subscriptions', label: t.navSubscriptions, icon: CreditCard },
+      ...(isPrivileged ? [{ id: 'admin' as AppView, label: t.navAdmin, icon: Shield }] : []),
+    ];
+    return (
+      <AppShell
+        lang={lang}
+        currentView={currentView}
+        tools={tools}
+        accountItems={accountItems}
+        userName={user.name}
+        userSubtitle={user.email}
+        theme={theme === 'dark' ? 'dark' : 'light'}
+        onToggleTheme={toggleTheme}
+        onSetLang={setLang}
+        onNavigate={(view) => navJump(view)}
+        onLogout={() => void logout()}
+      >
+        {children}
+      </AppShell>
     );
   }
 
