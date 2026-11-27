@@ -58,6 +58,9 @@ const ALLOWED_EXACT_ORIGINS = new Set(
     'https://tedribi.pages.dev',
     'https://b495be73.tedribi.pages.dev',
     'https://ip.tadribi.chtbqi.com',
+    // Native Capacitor apps (Android WebView / iOS WKWebView) call the API from these origins.
+    'https://localhost',
+    'capacitor://localhost',
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'http://localhost:5173',

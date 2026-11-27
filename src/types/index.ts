@@ -1,9 +1,43 @@
 export type Language = 'ar' | 'fr' | 'en';
 export type TrackSlug = 'arabic' | 'french' | 'bilingual' | 'all';
-export type LevelSlug = 'foundation' | 'intermediate' | 'advanced';
+export type LevelSlug =
+  | 'foundation'
+  | 'intermediate'
+  | 'advanced'
+  | 'prep_student'
+  | 'highschool_student'
+  | 'university_student'
+  | 'teacher'
+  | 'professor';
 export type UserRole = 'admin' | 'editor' | 'teacher' | 'student';
 export type Difficulty = 'easy' | 'medium' | 'hard';
 export type ExamMode = 'mock' | 'official_sim' | 'placement';
+
+export type AdminPermission =
+  | 'dashboard'
+  | 'users'
+  | 'students'
+  | 'teachers'
+  | 'professors'
+  | 'schools'
+  | 'departments'
+  | 'lessons'
+  | 'questions'
+  | 'exams'
+  | 'baccalaureate'
+  | 'subscriptions'
+  | 'payments'
+  | 'receipts'
+  | 'transactions'
+  | 'notifications'
+  | 'verification'
+  | 'reports'
+  | 'content'
+  | 'files'
+  | 'administrators'
+  | 'permissions'
+  | 'audit_logs'
+  | 'settings';
 
 export type BillingCycle = 'free' | 'monthly' | 'quarterly' | 'season' | 'annual';
 
@@ -27,13 +61,23 @@ export interface User {
   name: string;
   email: string;
   emailVerified?: boolean;
+  email_verified?: number | boolean;
   isAdmin?: boolean;
+  permissions?: AdminPermission[];
   canCopy?: boolean;
   disabled?: boolean;
   role: UserRole;
   track: 'arabic' | 'french' | 'bilingual';
   preferred_lang: Language;
   level: LevelSlug;
+  teacher_category?: 'bilingual' | 'arabic' | 'french' | '' | null;
+  professor_specialty?: string | null;
+  verified_account?: number | boolean;
+  verified_badge_label?: string | null;
+  followers_count?: number;
+  following_count?: number;
+  notification_sound_enabled?: number | boolean;
+  last_login_at?: string | null;
   profileCompleted?: boolean;
   authProvider?: string;
   acceptedTermsAt?: string | null;
@@ -47,7 +91,8 @@ export interface User {
   geo_permission_status?: 'prompt' | 'granted' | 'denied' | string;
   last_geo_lat?: number | null;
   last_geo_lng?: number | null;
-  last_geo_label?: string;
+  last_geo_label?: string | null;
+  last_geo_is_approx?: boolean | number;
   last_geo_updated_at?: string | null;
   notification_permission_status?: 'default' | 'granted' | 'denied' | string;
   last_profile_updated_at?: string | null;
@@ -393,7 +438,7 @@ export interface PaymentTransaction {
   amount_mru: number;
   amount_eur: number;
   currency: string;
-  card_brand: 'visa' | 'mastercard';
+  card_brand: 'visa' | 'mastercard' | 'nardopay' | 'card' | string;
   card_last4: string;
   card_exp_month: number;
   card_exp_year: number;
@@ -459,6 +504,7 @@ export interface PaymentMethodConfig {
 
 export type SubscriptionRequestStatus =
   | 'pending_review'
+  | 'manual_review'
   | 'partial_pending'
   | 'needs_info'
   | 'approved'
@@ -526,8 +572,8 @@ export interface RejectionIssue {
 
 export interface ReceiptInspectionResult {
   inspectionId: string;
-  verdict: 'verified' | 'underpaid' | 'rejected';
-  status?: 'verified' | 'underpaid' | 'rejected';
+  verdict: 'verified' | 'underpaid' | 'manual_review' | 'rejected';
+  status?: 'verified' | 'underpaid' | 'manual_review' | 'rejected';
   reason: string;
   reasonFr?: string;
   reasonEn?: string;
@@ -782,4 +828,192 @@ export interface ReferralSummary {
   rewards: ReferralRewardItem[];
 }
 
+export interface TeacherSection {
+  id: number;
+  teacher_user_id: number;
+  school_id?: number | null;
+  school_name?: string;
+  name?: string;
+  title?: string;
+  subject_name?: string;
+  subject_slug?: string;
+  level?: string;
+  description: string;
+  visibility: 'public' | 'private';
+  share_code: string;
+  share_url?: string;
+  allow_student_invites?: number | boolean;
+  active?: number;
+  status?: 'active' | 'archived' | string;
+  teacher_name?: string;
+  teacher_verified?: number;
+  teacher_badge_label?: string;
+  member_count?: number;
+  members_count?: number;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface SectionContentItem {
+  id: number;
+  section_id: number;
+  author_user_id: number;
+  author_name?: string;
+  title: string;
+  content_type: 'lesson' | 'explanation' | 'pdf' | 'image' | 'audio' | 'file' | 'announcement';
+  body: string;
+  file_id?: string | null;
+  file_url?: string | null;
+  file_name?: string | null;
+  created_at: string;
+}
+
+export interface SectionTestQuestion {
+  id?: number;
+  stem: string;
+  options: string[];
+  correctIndex?: number;
+  correct_index?: number;
+  points?: number;
+}
+
+export interface SectionTestItem {
+  id: number;
+  section_id: number;
+  title: string;
+  description: string;
+  duration_minutes: number;
+  max_score: number;
+  questions: SectionTestQuestion[];
+  active?: number;
+  published?: number;
+  mySubmission?: {
+    score: number;
+    max_score: number;
+    submitted_at?: string;
+  } | null;
+  created_at: string;
+}
+
+export interface SchoolItem {
+  id: number;
+  owner_user_id: number;
+  owner_name?: string;
+  owner_email?: string;
+  name: string;
+  school_type?: string;
+  city: string;
+  wilaya?: string;
+  description: string;
+  contact_email?: string;
+  contact_phone?: string;
+  status: 'pending' | 'active' | 'approved' | 'rejected' | 'suspended';
+  verified_account: number;
+  followers_count?: number;
+  teachers_count?: number;
+  students_count?: number;
+  departments_count?: number;
+  rejection_reason?: string;
+  created_at: string;
+  approved_at?: string | null;
+}
+
+export interface PaymentOrderItem {
+  id: number;
+  order_id: string;
+  user_id: number;
+  user_name?: string;
+  user_email?: string;
+  plan_id: number;
+  plan_name_ar?: string;
+  provider: string;
+  amount: number;
+  currency: string;
+  status: 'pending' | 'completed' | 'failed' | 'cancelled' | 'expired';
+  provider_session_id?: string;
+  provider_tx_id?: string;
+  checkout_url?: string;
+  failure_reason?: string;
+  verified_at?: string | null;
+  created_at: string;
+}
+
+export interface VerificationRequestItem {
+  id: number;
+  user_id: number;
+  user_name?: string;
+  user_email?: string;
+  user_level?: string;
+  account_type: string;
+  full_name: string;
+  organization: string;
+  specialty: string;
+  notes: string;
+  document_file_id?: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  rejection_reason?: string;
+  reviewed_by?: number | null;
+  reviewed_at?: string | null;
+  created_at: string;
+}
+
+export interface StoredFileItem {
+  id: string;
+  owner_user_id: number;
+  owner_name?: string;
+  owner_email?: string;
+  entity_type: string;
+  entity_id: string;
+  visibility: string;
+  original_name: string;
+  mime_type: string;
+  size_bytes: number;
+  sha256: string;
+  storage_provider: string;
+  storage_key: string;
+  created_at: string;
+}
+
+export interface EducatorItem {
+  id: number;
+  name: string;
+  email?: string;
+  role: string;
+  level: LevelSlug;
+  teacher_category: string;
+  professor_specialty: string;
+  verified_account: number;
+  verified_badge_label: string;
+  followers_count: number;
+  following_count: number;
+  sections_count?: number;
+  is_following?: boolean;
+}
+
+export type EducatorCard = EducatorItem;
+
+export interface StudentInstitutionalSummary {
+  pendingInvitations: Array<{
+    member_id: number;
+    section_id: number;
+    title: string;
+    share_code?: string;
+    teacher_name: string;
+    teacher_verified?: number | boolean;
+    school_name?: string;
+  }>;
+  joinedSections: TeacherSection[];
+  evaluations: Array<{
+    id: number;
+    section_id?: number;
+    section_title: string;
+    score?: number | null;
+    max_score?: number;
+    comment?: string;
+    note?: string;
+    created_at?: string;
+  }>;
+  followedEducators: EducatorItem[];
+  followedSchools: SchoolItem[];
+}
 

@@ -47,6 +47,7 @@ import type {
 import { apiRequest, setAuthToken } from '../utils/api';
 import { trackAnalyticsEvent } from '../utils/locale';
 import { speechEngine } from '../utils/speechEngine';
+import { isPhoneDevice } from '../lib/deviceMode';
 
 export type AppView =
   | 'home'
@@ -75,7 +76,10 @@ export type AppView =
   | 'reset-password'
   | 'verify-receipt'
   | 'subscriptions'
-  | 'checkout';
+  | 'checkout'
+  | 'mobile'
+  | 'teacher-dashboard'
+  | 'school-dashboard';
 
 export type ThemeMode = 'light' | 'dark';
 
@@ -124,6 +128,8 @@ export interface ViewParams {
 
 interface AppContextValue {
   lang: Language;
+  notificationSoundEnabled: boolean;
+  toggleNotificationSound: (next?: boolean) => Promise<void>;
   setLang: (lang: Language) => void;
   theme: ThemeMode;
   toggleTheme: () => void;
@@ -198,6 +204,7 @@ const LANG_STORAGE_KEY = 'fl_lang';
 
 const VALID_VIEWS: AppView[] = [
   'home',
+  'mobile',
   'about',
   'privacy',
   'terms',
@@ -247,6 +254,13 @@ function getInitialViewAndParams(): { view: AppView; params: ViewParams; search:
   const at = sp.get('at')?.trim() || '';
   const rid = sp.get('rid')?.trim() || '';
   const sig = sp.get('sig')?.trim() || '';
+
+  // Phones always start in the mobile app. Shared section links and e-mail
+  // action links (reset password, receipt check) keep opening their web page.
+  const isWebDeepLink = slug.startsWith('sections/') || Boolean(mode || oobCode || token);
+  if (isPhoneDevice() && !isWebDeepLink) {
+    return { view: 'mobile', params: {}, search: window.location.search || '' };
+  }
 
   if (mode === 'resetPassword' && oobCode) {
     return {
@@ -947,6 +961,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       'reset-password',
       'verify-receipt',
       'home',
+      'mobile',
     ];
     if (user.profileCompleted === false && !allowedWhileIncomplete.includes(currentView)) {
       navigate('account-complete');
@@ -990,10 +1005,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const siteConfig = catalog.siteConfig || emptySiteConfig;
 
+  const [notificationSoundEnabled, setNotificationSoundEnabled] = useState<boolean>(() => {
+    try {
+      const saved = window.localStorage.getItem('tadribi_notif_sound');
+      return saved === null ? true : saved !== '0';
+    } catch {
+      return true;
+    }
+  });
+  const notifSoundRef = useRef(notificationSoundEnabled);
+  notifSoundRef.current = notificationSoundEnabled;
+
+  const toggleNotificationSound = useCallback(async (next?: boolean) => {
+    const nextVal = typeof next === 'boolean' ? next : !notifSoundRef.current;
+    setNotificationSoundEnabled(nextVal);
+    try {
+      window.localStorage.setItem('tadribi_notif_sound', nextVal ? '1' : '0');
+    } catch {
+      // ignore storage restriction
+    }
+    // Best effort: the server may not expose this preference yet.
+    await apiRequest('/api/auth/notification-preferences', {
+      method: 'PATCH',
+      json: { soundEnabled: nextVal },
+    }).catch(() => {});
+  }, []);
+
   return (
     <AppContext.Provider
       value={{
         lang,
+        notificationSoundEnabled,
+        toggleNotificationSound,
         setLang,
         theme,
         toggleTheme,

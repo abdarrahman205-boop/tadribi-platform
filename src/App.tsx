@@ -32,6 +32,8 @@ import { SubscriptionsPage } from './pages/SubscriptionsPage';
 import { SummariesPage } from './pages/SummariesPage';
 import { SupportPage } from './pages/SupportPage';
 import { VerifyReceiptPage } from './pages/VerifyReceiptPage';
+import { MobileAppPage } from './pages/MobileAppPage';
+import { isPhoneDevice } from './lib/deviceMode';
 
 const EmailVerificationGateBanner: React.FC = () => {
   const {
@@ -162,9 +164,17 @@ const EmailVerificationGateBanner: React.FC = () => {
   );
 };
 
+// Views that stay on the web page even on a phone (opened from e-mail links or shared links).
+const PHONE_WEB_VIEWS: string[] = ['reset-password', 'verify-receipt', 'section-view'];
+
 const MainRouter: React.FC = () => {
   const { currentView, bootLoading, lang, user, authDisabledNotice, clearAuthDisabledNotice } =
     useApp();
+
+  // Phones and the native app always get the mobile app; computers get the website.
+  if (currentView === 'mobile' || (isPhoneDevice() && !PHONE_WEB_VIEWS.includes(currentView))) {
+    return <MobileAppPage />;
+  }
 
   if (bootLoading) {
     return (
